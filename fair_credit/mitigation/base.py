@@ -5,9 +5,8 @@ import pandas as pd
 from ..models.base import BaselineModel
 
 
-class BiasmitigationTechnique(ABC):    
+class BiasmitigationTechnique(ABC):
     def __init__(self, **kwargs):
-
         self.is_fitted = False
         self.mitigation_params = kwargs
     
@@ -23,11 +22,11 @@ class BiasmitigationTechnique(ABC):
     
     def fit_transform(self, X: pd.DataFrame, y: pd.Series,
                      protected_attr: pd.Series) -> Tuple[pd.DataFrame, pd.Series]:
-
         self.fit(X, y, protected_attr)
         return self.transform(X, y, protected_attr)
     
     def get_mitigation_info(self) -> Dict[str, Any]:
+
         return {
             'technique_type': self.__class__.__name__,
             'is_fitted': self.is_fitted,
@@ -43,6 +42,7 @@ class PreProcessingTechnique(BiasmitigationTechnique):
 
 
 class PostProcessingTechnique(BiasmitigationTechnique):
+    """Base class for post-processing bias mitigation techniques."""
     
     @abstractmethod
     def optimize_thresholds(self, y_true: np.ndarray, y_proba: np.ndarray,
