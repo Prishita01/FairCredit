@@ -15,7 +15,7 @@ class FairnessAuditPipeline:
         self.fairness_metrics = FairnessMetrics(confidence_level=confidence_level, n_jobs=n_jobs)
         self.bootstrap_ci = BootstrapCI(confidence_level=confidence_level, n_jobs=n_jobs)
         self.intersectional_analyzer = IntersectionalAnalyzer(confidence_level=confidence_level)
-        
+
         self.audit_results = {}
     
     def run_comprehensive_audit(self, y_true: np.ndarray, y_pred: np.ndarray,
@@ -72,7 +72,7 @@ class FairnessAuditPipeline:
         audit_results['overall_summary'] = self._generate_overall_summary(audit_results)
         
         audit_results['recommendations'] = self._generate_recommendations(audit_results)
-        
+
         self.audit_results = audit_results
         
         return audit_results
@@ -106,7 +106,7 @@ class FairnessAuditPipeline:
         except Exception as e:
             print(f"Warning: Could not compute Equal Opportunity CI: {e}")
             intervals['equal_opportunity_gap'] = (np.nan, np.nan)
-        
+
         try:
             lower, upper = self.fairness_metrics.bootstrap_confidence_intervals(
                 self.fairness_metrics.compute_demographic_parity,
@@ -126,7 +126,7 @@ class FairnessAuditPipeline:
     def _identify_disadvantaged_groups(self, fairness_results: Dict, 
                                      protected_attr: np.ndarray) -> Dict[str, Any]:
         group_analysis = {}
-        
+
         eo_results = fairness_results.get('equal_opportunity', {})
         tpr_by_group = {}
         
@@ -282,11 +282,11 @@ class FairnessAuditPipeline:
         
         report_lines.append("FAIRNESS ASSESSMENT SUMMARY:")
         if violations:
-            report_lines.append(f"  ⚠️  {len(violations)} fairness violation(s) detected")
+            report_lines.append(f"{len(violations)} fairness violation(s) detected")
             for violation in violations:
-                report_lines.append(f"    - {violation['metric']} gap: {violation['gap']:.3f} ({violation['severity']} severity)")
+                report_lines.append(f"{violation['metric']} gap: {violation['gap']:.3f} ({violation['severity']} severity)")
         else:
-            report_lines.append("  ✅ No significant fairness violations detected")
+            report_lines.append("No significant fairness violations detected")
         report_lines.append("")
         
         single_attr_results = self.audit_results.get('single_attribute_analysis', {})
@@ -294,24 +294,25 @@ class FairnessAuditPipeline:
             report_lines.append(f"ANALYSIS FOR PROTECTED ATTRIBUTE: {attr_name.upper()}")
             report_lines.append("-" * 50)
             
+
             eo_results = attr_results.get('equal_opportunity', {})
             eo_gap = eo_results.get('equal_opportunity_gap', 0)
-            report_lines.append(f"  Equal Opportunity Gap: {eo_gap:.4f}")
+            report_lines.append(f"Equal Opportunity Gap: {eo_gap:.4f}")
             
             for key, value in eo_results.items():
                 if key.startswith('tpr_group_'):
                     group_name = key.replace('tpr_group_', '')
-                    report_lines.append(f"    {group_name} TPR: {value:.4f}")
+                    report_lines.append(f"{group_name} TPR: {value:.4f}")
             
             dp_results = attr_results.get('demographic_parity', {})
             dp_gap = dp_results.get('demographic_parity_gap', 0)
-            report_lines.append(f"  Demographic Parity Gap: {dp_gap:.4f}")
+            report_lines.append(f"Demographic Parity Gap: {dp_gap:.4f}")
             
             ci_results = attr_results.get('confidence_intervals', {})
             if 'equal_opportunity_gap' in ci_results:
                 ci_lower, ci_upper = ci_results['equal_opportunity_gap']
                 if not (np.isnan(ci_lower) or np.isnan(ci_upper)):
-                    report_lines.append(f"    95% CI for EO gap: [{ci_lower:.4f}, {ci_upper:.4f}]")
+                    report_lines.append(f"95% CI for EO gap: [{ci_lower:.4f}, {ci_upper:.4f}]")
             
             report_lines.append("")
         
@@ -363,7 +364,7 @@ class FairnessAuditPipeline:
             figures['intersectional_heatmap'] = self.intersectional_analyzer.create_fairness_heatmap(
                 {'detailed_analysis': intersectional_results.get('detailed_analysis', {})}
             )
-        
+
         if save_dir:
             import os
             os.makedirs(save_dir, exist_ok=True)
@@ -395,7 +396,7 @@ class FairnessAuditPipeline:
             eo_gaps.append(attr_results.get('equal_opportunity', {}).get('equal_opportunity_gap', 0))
             dp_gaps.append(attr_results.get('demographic_parity', {}).get('demographic_parity_gap', 0))
             eq_gaps.append(attr_results.get('equalized_odds', {}).get('equalized_odds_gap', 0))
-        
+
         fig, ax = plt.subplots(figsize=(12, 8))
         
         x = np.arange(len(attributes))

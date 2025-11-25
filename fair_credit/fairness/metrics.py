@@ -11,6 +11,22 @@ class FairnessMetrics(FairnessAuditor):
         super().__init__(confidence_level)
         self.n_jobs = n_jobs if n_jobs != -1 else mp.cpu_count()
     
+    def calculate_metrics(self, y_true: np.ndarray, y_pred: np.ndarray,
+                         protected_attr: np.ndarray) -> Dict[str, float]:
+        self.validate_inputs(y_true, y_pred, protected_attr)
+        dp_results = self.compute_demographic_parity(y_pred, protected_attr)
+        eo_results = self.compute_equal_opportunity(y_true, y_pred, protected_attr)
+        
+        groups = np.unique(protected_attr)
+        pos_rates = [dp_results[f'pos_rate_group_{group}'] for group in groups]
+        disparate_impact = min(pos_rates) / max(pos_rates) if max(pos_rates) > 0 else 1.0
+        
+        return {
+            'demographic_parity_difference': dp_results['demographic_parity_gap'],
+            'equal_opportunity_difference': eo_results['equal_opportunity_gap'],
+            'disparate_impact': disparate_impact
+        }
+    
     def compute_equal_opportunity(self, y_true: np.ndarray, y_pred: np.ndarray,
                                  protected_attr: np.ndarray) -> Dict[str, float]:
         self.validate_inputs(y_true, y_pred, protected_attr)
@@ -20,7 +36,7 @@ class FairnessMetrics(FairnessAuditor):
         
         for group in np.unique(protected_attr):
             group_mask = protected_attr == group
- 
+            
             group_y_true = y_true[group_mask]
             group_y_pred = y_pred[group_mask]
             
@@ -112,7 +128,6 @@ class FairnessMetrics(FairnessAuditor):
         for group in np.unique(protected_attr):
             group_mask = protected_attr == group
             group_y_pred = y_pred[group_mask]
-            
             pos_rate = np.mean(group_y_pred)
             pos_rate_by_group[str(group)] = pos_rate
             results[f"pos_rate_group_{group}"] = pos_rate
@@ -136,13 +151,13 @@ class FairnessMetrics(FairnessAuditor):
         y_true = kwargs.get('y_true')
         y_pred = kwargs.get('y_pred') 
         protected_attr = kwargs.get('protected_attr')
-        metric_key = kwargs.get('metric_key', 'gap') 
+        metric_key = kwargs.get('metric_key', 'gap')
         
         if y_true is None or y_pred is None or protected_attr is None:
             raise ValueError("Must provide y_true, y_pred, and protected_attr for bootstrap")
         
         n_samples = len(y_true)
-
+    
         bootstrap_metrics = []
 
         bootstrap_metrics = []
@@ -206,7 +221,7 @@ class FairnessMetrics(FairnessAuditor):
         for sex in np.unique(sex_attr):
             for age in np.unique(age_attr):
                 mask = (sex_attr == sex) & (age_attr == age)
-                if np.sum(mask) > 0:  # Only include non-empty groups
+                if np.sum(mask) > 0:
                     intersectional_groups.append(mask)
                     group_labels.append(f"{sex}_{age}")
         
@@ -231,7 +246,6 @@ class FairnessMetrics(FairnessAuditor):
 
 
 class BootstrapCI:
-    
     def __init__(self, confidence_level: float = 0.95, n_jobs: int = -1):
         self.confidence_level = confidence_level
         self.n_jobs = n_jobs if n_jobs != -1 else mp.cpu_count()
