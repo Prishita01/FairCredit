@@ -19,7 +19,7 @@ except ImportError:
 
 @dataclass
 class ModelMetrics:
-    """Container for model evaluation metrics."""
+
     
     # Performance metrics
     auc: float

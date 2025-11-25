@@ -252,7 +252,7 @@ class XGBoostModel(BaselineModel):
         return max_child_depth
     
     def _count_tree_nodes(self, tree_node: Dict) -> int:
-        count = 1  # Current node
+        count = 1
         if 'children' in tree_node:
             for child in tree_node['children']:
                 count += self._count_tree_nodes(child)
