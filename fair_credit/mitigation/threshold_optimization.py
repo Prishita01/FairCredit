@@ -10,7 +10,6 @@ class ThresholdOptimizer(PostProcessingTechnique):
                  constraint_tolerance: float = 0.01,
                  optimization_method: str = 'differential_evolution',
                  **kwargs):
-
         super().__init__(**kwargs)
         self.fairness_constraint = fairness_constraint
         self.constraint_tolerance = constraint_tolerance
@@ -32,6 +31,7 @@ class ThresholdOptimizer(PostProcessingTechnique):
     
     def transform(self, X: pd.DataFrame, y: Optional[pd.Series] = None,
                  protected_attr: Optional[pd.Series] = None) -> Tuple[pd.DataFrame, Optional[pd.Series]]:
+
         if not self.is_fitted:
             raise ValueError("ThresholdOptimizer must be fitted before transform")
         
@@ -39,12 +39,14 @@ class ThresholdOptimizer(PostProcessingTechnique):
     
     def optimize_thresholds(self, y_true: np.ndarray, y_proba: np.ndarray,
                            protected_attr: np.ndarray) -> Dict[str, float]:
+
         if len(y_true) != len(y_proba) or len(y_true) != len(protected_attr):
             raise ValueError("All input arrays must have the same length")
         
         if len(y_true) == 0:
             raise ValueError("Cannot optimize thresholds for empty dataset")
         
+
         unique_groups = np.unique(protected_attr)
         n_groups = len(unique_groups)
         
@@ -53,7 +55,6 @@ class ThresholdOptimizer(PostProcessingTechnique):
         
         self.groups_ = unique_groups
         
-        # Defining objective function (classification error)
         def objective_function(thresholds):
 
             total_errors = 0
@@ -80,6 +81,7 @@ class ThresholdOptimizer(PostProcessingTechnique):
             return total_errors / total_samples
         
         def fairness_constraint_function(thresholds):
+ 
             if self.fairness_constraint == 'equal_opportunity':
                 return self._equal_opportunity_constraints(thresholds, y_true, y_proba, protected_attr, unique_groups)
             elif self.fairness_constraint == 'equalized_odds':
@@ -87,19 +89,18 @@ class ThresholdOptimizer(PostProcessingTechnique):
             else:
                 raise ValueError(f"Unsupported fairness constraint: {self.fairness_constraint}")
         
+    
         bounds = [(0.0, 1.0) for _ in range(n_groups)]
         
         initial_guess = np.full(n_groups, 0.5)
         
         constraints = []
         if self.fairness_constraint in ['equal_opportunity', 'equalized_odds']:
-            # Adding fairness constraints
             constraints.append({
                 'type': 'ineq',
                 'fun': lambda x: -np.max(np.abs(fairness_constraint_function(x))) + self.constraint_tolerance
             })
         
-        # Performing optimization
         if self.optimization_method == 'differential_evolution':
             result = differential_evolution(
                 objective_function,
@@ -112,11 +113,11 @@ class ThresholdOptimizer(PostProcessingTechnique):
                    if k in ['strategy', 'mutation', 'recombination', 'disp']}
             )
             
-            # Checking fairness constraints manually for differential evolution
             if result.success:
                 constraint_violations = fairness_constraint_function(result.x)
                 max_violation = np.max(np.abs(constraint_violations))
                 if max_violation > self.constraint_tolerance:
+
                     try:
                         refined_result = minimize(
                             objective_function,
@@ -129,7 +130,7 @@ class ThresholdOptimizer(PostProcessingTechnique):
                         if refined_result.success:
                             result = refined_result
                     except:
-                        pass  # Keep original result if refinement fails
+                        pass
             
         elif self.optimization_method == 'minimize':
             result = minimize(
@@ -146,7 +147,6 @@ class ThresholdOptimizer(PostProcessingTechnique):
         self.optimization_result_ = result
         
         if not result.success:
-            # Fallback to uniform threshold if optimization fails
             print(f"Warning: Optimization failed ({result.message}). Using uniform threshold 0.5.")
             optimal_thresholds_array = np.full(n_groups, 0.5)
         else:
@@ -155,8 +155,9 @@ class ThresholdOptimizer(PostProcessingTechnique):
         optimal_thresholds = {}
         for i, group in enumerate(unique_groups):
             optimal_thresholds[str(group)] = float(optimal_thresholds_array[i])
-
+        
         self.optimal_thresholds_ = optimal_thresholds
+        
         self._validate_optimization_result(y_true, y_proba, protected_attr, optimal_thresholds)
         
         return optimal_thresholds
@@ -164,7 +165,6 @@ class ThresholdOptimizer(PostProcessingTechnique):
     def _equal_opportunity_constraints(self, thresholds: np.ndarray, y_true: np.ndarray,
                                      y_proba: np.ndarray, protected_attr: np.ndarray,
                                      unique_groups: np.ndarray) -> np.ndarray:
-        # Computing TPR for each group
         tprs = []
         for i, group in enumerate(unique_groups):
             group_mask = protected_attr == group
@@ -175,13 +175,12 @@ class ThresholdOptimizer(PostProcessingTechnique):
             group_y_true = y_true[group_mask]
             group_y_proba = y_proba[group_mask]
             threshold = thresholds[i]
-
+            
             group_y_pred = (group_y_proba >= threshold).astype(int)
             
-            # Computing TPR (True Positive Rate)
             positive_mask = group_y_true == 1
             if not np.any(positive_mask):
-                tpr = 0.0  # No positive samples
+                tpr = 0.0 
             else:
                 true_positives = np.sum((group_y_pred == 1) & (group_y_true == 1))
                 total_positives = np.sum(positive_mask)
@@ -191,7 +190,6 @@ class ThresholdOptimizer(PostProcessingTechnique):
         
         tprs = np.array(tprs)
         
-        # Computing pairwise TPR differences
         constraint_violations = []
         for i in range(len(unique_groups)):
             for j in range(i + 1, len(unique_groups)):
@@ -203,7 +201,7 @@ class ThresholdOptimizer(PostProcessingTechnique):
     def _equalized_odds_constraints(self, thresholds: np.ndarray, y_true: np.ndarray,
                                   y_proba: np.ndarray, protected_attr: np.ndarray,
                                   unique_groups: np.ndarray) -> np.ndarray:
-        # Computing TPR and FPR for each group
+
         tprs = []
         fprs = []
         
@@ -218,10 +216,8 @@ class ThresholdOptimizer(PostProcessingTechnique):
             group_y_proba = y_proba[group_mask]
             threshold = thresholds[i]
             
-            # Making predictions using group-specific threshold
             group_y_pred = (group_y_proba >= threshold).astype(int)
             
-            # Computing TPR (True Positive Rate)
             positive_mask = group_y_true == 1
             if np.any(positive_mask):
                 true_positives = np.sum((group_y_pred == 1) & (group_y_true == 1))
@@ -230,7 +226,6 @@ class ThresholdOptimizer(PostProcessingTechnique):
             else:
                 tpr = 0.0
             
-            # Computing FPR (False Positive Rate)
             negative_mask = group_y_true == 0
             if np.any(negative_mask):
                 false_positives = np.sum((group_y_pred == 1) & (group_y_true == 0))
@@ -245,16 +240,13 @@ class ThresholdOptimizer(PostProcessingTechnique):
         tprs = np.array(tprs)
         fprs = np.array(fprs)
         
-        # Computing pairwise TPR and FPR differences
         constraint_violations = []
         
-        # TPR constraints
         for i in range(len(unique_groups)):
             for j in range(i + 1, len(unique_groups)):
                 tpr_diff = abs(tprs[i] - tprs[j])
                 constraint_violations.append(tpr_diff)
         
-        # FPR constraints
         for i in range(len(unique_groups)):
             for j in range(i + 1, len(unique_groups)):
                 fpr_diff = abs(fprs[i] - fprs[j])
@@ -264,9 +256,9 @@ class ThresholdOptimizer(PostProcessingTechnique):
     
     def _validate_optimization_result(self, y_true: np.ndarray, y_proba: np.ndarray,
                                     protected_attr: np.ndarray, thresholds: Dict[str, float]):
+   
         y_pred = self.apply_thresholds(y_proba, protected_attr, thresholds)
         
-        # Computing fairness metrics
         from ..fairness.metrics import FairnessMetrics
         fairness_calculator = FairnessMetrics()
         
@@ -277,6 +269,7 @@ class ThresholdOptimizer(PostProcessingTechnique):
         else:
             fairness_metrics = {}
         
+
         accuracy = np.mean(y_true == y_pred)
         
         self.validation_metrics_ = {
@@ -287,6 +280,7 @@ class ThresholdOptimizer(PostProcessingTechnique):
         }
     
     def _check_constraint_satisfaction(self, fairness_metrics: Dict[str, Any]) -> bool:
+
         if self.fairness_constraint == 'equal_opportunity':
             gap = fairness_metrics.get('equal_opportunity_gap', float('inf'))
         elif self.fairness_constraint == 'equalized_odds':
@@ -298,26 +292,30 @@ class ThresholdOptimizer(PostProcessingTechnique):
     
     def apply_thresholds(self, y_proba: np.ndarray, protected_attr: np.ndarray,
                         thresholds: Dict[str, float]) -> np.ndarray:
+
         if len(y_proba) != len(protected_attr):
             raise ValueError("y_proba and protected_attr must have the same length")
         
         if len(y_proba) == 0:
             return np.array([], dtype=int)
         
+  
         y_pred = np.zeros(len(y_proba), dtype=int)
         
+ 
         unique_groups = np.unique(protected_attr)
         
         for group in unique_groups:
             group_mask = protected_attr == group
             if np.any(group_mask):
-                # Use group-specific threshold if available, otherwise use default 0.5
+
                 threshold = thresholds.get(str(group), 0.5)
                 y_pred[group_mask] = (y_proba[group_mask] >= threshold).astype(int)
         
         return y_pred
     
     def get_optimization_info(self) -> Dict[str, Any]:
+    
         if not self.is_fitted:
             raise ValueError("ThresholdOptimizer must be fitted before getting optimization info")
         
@@ -343,31 +341,36 @@ class ThresholdOptimizer(PostProcessingTechnique):
     
     def predict_with_thresholds(self, model, X: pd.DataFrame, 
                               protected_attr: pd.Series) -> np.ndarray:
+
         if not self.is_fitted or self.optimal_thresholds_ is None:
             raise ValueError("ThresholdOptimizer must be fitted and thresholds optimized before prediction")
         
+
         y_proba = model.predict_proba(X)[:, 1]
+ 
         protected_attr_np = protected_attr.values if hasattr(protected_attr, 'values') else np.array(protected_attr)
         
+
         return self.apply_thresholds(y_proba, protected_attr_np, self.optimal_thresholds_)
     
     def evaluate_threshold_effectiveness(self, y_true: np.ndarray, y_proba: np.ndarray,
                                        protected_attr: np.ndarray,
                                        baseline_threshold: float = 0.5) -> Dict[str, Any]:
+
         if self.optimal_thresholds_ is None:
             raise ValueError("Must optimize thresholds before evaluation")
         
-        # Baseline predictions (uniform threshold)
+     
         baseline_pred = (y_proba >= baseline_threshold).astype(int)
         
-        # Optimized predictions (group-specific thresholds)
+
         optimized_pred = self.apply_thresholds(y_proba, protected_attr, self.optimal_thresholds_)
         
-        # Computing fairness metrics for both
+     
         from ..fairness.metrics import FairnessMetrics
         fairness_calculator = FairnessMetrics()
         
-        # Baseline fairness
+       
         if self.fairness_constraint == 'equal_opportunity':
             baseline_fairness = fairness_calculator.compute_equal_opportunity(y_true, baseline_pred, protected_attr)
             optimized_fairness = fairness_calculator.compute_equal_opportunity(y_true, optimized_pred, protected_attr)
@@ -377,9 +380,11 @@ class ThresholdOptimizer(PostProcessingTechnique):
         else:
             baseline_fairness = {}
             optimized_fairness = {}
-
+        
+     
         baseline_accuracy = np.mean(y_true == baseline_pred)
         optimized_accuracy = np.mean(y_true == optimized_pred)
+        
         
         fairness_improvement = {}
         if self.fairness_constraint == 'equal_opportunity':
@@ -417,6 +422,6 @@ class ThresholdOptimizer(PostProcessingTechnique):
             },
             'success_criteria': {
                 'constraint_satisfied': self._check_constraint_satisfaction(optimized_fairness),
-                'accuracy_preserved': accuracy_change >= -0.02  # Allow up to 2% accuracy drop
+                'accuracy_preserved': accuracy_change >= -0.02 
             }
         }

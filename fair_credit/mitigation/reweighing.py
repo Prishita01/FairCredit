@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 class ReweighingMitigator(PreProcessingTechnique):
 
     def __init__(self, **kwargs):
+        """Initialize the reweighing mitigator."""
         super().__init__(**kwargs)
         self.weights_ = None
         self.group_weights_ = None
@@ -18,10 +19,11 @@ class ReweighingMitigator(PreProcessingTechnique):
     
     def fit(self, X: pd.DataFrame, y: pd.Series, 
             protected_attr: pd.Series) -> 'ReweighingMitigator':
-        # Compute weights for each instance
+ 
+       
         self.weights_ = self.compute_weights(y, protected_attr)
         
-        # Store original and reweighed distributions for validation
+     
         self._compute_distributions(y, protected_attr, self.weights_)
         
         self.is_fitted = True
@@ -29,12 +31,14 @@ class ReweighingMitigator(PreProcessingTechnique):
     
     def transform(self, X: pd.DataFrame, y: Optional[pd.Series] = None,
                  protected_attr: Optional[pd.Series] = None) -> Tuple[pd.DataFrame, Optional[pd.Series]]:
+
         if not self.is_fitted:
             raise ValueError("ReweighingMitigator must be fitted before transform")
         
         return X, y
     
     def compute_weights(self, y: pd.Series, protected_attr: pd.Series) -> np.ndarray:
+
         if len(y) != len(protected_attr):
             raise ValueError("y and protected_attr must have the same length")
         
@@ -44,14 +48,14 @@ class ReweighingMitigator(PreProcessingTechnique):
         y_vals = y.values if hasattr(y, 'values') else np.array(y)
         attr_vals = protected_attr.values if hasattr(protected_attr, 'values') else np.array(protected_attr)
         
-
+      
         unique_attrs = np.unique(attr_vals)
         unique_labels = np.unique(y_vals)
         
-
+       
         n_total = len(y_vals)
         
-  
+ 
         n_attr = {}  
         n_label = {}  
         n_joint = {}  
@@ -66,24 +70,27 @@ class ReweighingMitigator(PreProcessingTechnique):
             for label in unique_labels:
                 n_joint[(attr, label)] = np.sum((attr_vals == attr) & (y_vals == label))
         
- 
+
         weights = np.zeros(len(y_vals))
         
         for i in range(len(y_vals)):
             attr_val = attr_vals[i]
             label_val = y_vals[i]
             
-
+   
             n_a = n_attr[attr_val]
             n_y = n_label[label_val]
             n_ay = n_joint[(attr_val, label_val)]
             
             if n_ay == 0:
+                
                 weights[i] = 0
             else:
-
+                # Apply reweighing formula: w(a,y) = (n_a * n_y) / (n_total * n_ay)
+                # This is equivalent to P(A=a) * P(Y=y) / P(A=a, Y=y)
                 weights[i] = (n_a * n_y) / (n_total * n_ay)
         
+    
         self.group_weights_ = {}
         for attr in unique_attrs:
             for label in unique_labels:
@@ -98,12 +105,14 @@ class ReweighingMitigator(PreProcessingTechnique):
         return weights
     
     def _compute_distributions(self, y: pd.Series, protected_attr: pd.Series, weights: np.ndarray):
+  
         y_vals = y.values if hasattr(y, 'values') else np.array(y)
         attr_vals = protected_attr.values if hasattr(protected_attr, 'values') else np.array(protected_attr)
         
         unique_attrs = np.unique(attr_vals)
         unique_labels = np.unique(y_vals)
         
+   
         n_total = len(y_vals)
         self.original_distribution_ = {}
         
@@ -111,7 +120,7 @@ class ReweighingMitigator(PreProcessingTechnique):
             for label in unique_labels:
                 count = np.sum((attr_vals == attr) & (y_vals == label))
                 self.original_distribution_[(attr, label)] = count / n_total
-        
+      
         weighted_total = np.sum(weights)
         self.reweighed_distribution_ = {}
         
@@ -123,19 +132,24 @@ class ReweighingMitigator(PreProcessingTechnique):
     
     def validate_weights(self, y: pd.Series, protected_attr: pd.Series, 
                         weights: np.ndarray, tolerance: float = 1e-6) -> Dict[str, bool]:
+ 
         validation_results = {}
         
+
         validation_results['weights_non_negative'] = np.all(weights >= 0)
         
+      
         actual_sum = np.sum(weights)
         validation_results['weights_sum_positive'] = actual_sum > 0
         
+
         y_vals = y.values if hasattr(y, 'values') else np.array(y)
         attr_vals = protected_attr.values if hasattr(protected_attr, 'values') else np.array(protected_attr)
         
         unique_attrs = np.unique(attr_vals)
         unique_labels = np.unique(y_vals)
         
+
         weighted_total = np.sum(weights)
         
         if weighted_total == 0:
@@ -143,6 +157,7 @@ class ReweighingMitigator(PreProcessingTechnique):
             validation_results['independence_violations'] = [('all_groups', 'zero_weights', float('inf'))]
             return validation_results
         
+   
         p_attr_weighted = {}
         for attr in unique_attrs:
             mask = attr_vals == attr
@@ -153,19 +168,23 @@ class ReweighingMitigator(PreProcessingTechnique):
             mask = y_vals == label
             p_label_weighted[label] = np.sum(weights[mask]) / weighted_total
         
+  
         p_joint_weighted = {}
         for attr in unique_attrs:
             for label in unique_labels:
                 mask = (attr_vals == attr) & (y_vals == label)
                 p_joint_weighted[(attr, label)] = np.sum(weights[mask]) / weighted_total
         
+   
         independence_violations = []
+        
         independence_tolerance = max(tolerance, 1e-3)
         
         for attr in unique_attrs:
             for label in unique_labels:
                 joint_prob = p_joint_weighted[(attr, label)]
                 expected_prob = p_attr_weighted[attr] * p_label_weighted[label]
+                
                 
                 if joint_prob > 0 and expected_prob > 0:
                     absolute_error = abs(joint_prob - expected_prob)
@@ -176,11 +195,12 @@ class ReweighingMitigator(PreProcessingTechnique):
         validation_results['statistical_independence'] = len(independence_violations) == 0
         validation_results['independence_violations'] = independence_violations
         
+       
         group_weights_positive = True
         for attr in unique_attrs:
             for label in unique_labels:
                 mask = (attr_vals == attr) & (y_vals == label)
-                if np.any(mask):  # Group exists in original data
+                if np.any(mask):  
                     group_weight = np.sum(weights[mask])
                     if group_weight <= 0:
                         group_weights_positive = False
@@ -193,6 +213,7 @@ class ReweighingMitigator(PreProcessingTechnique):
         return validation_results
     
     def get_weight_statistics(self) -> Dict[str, Any]:
+
         if not self.is_fitted or self.weights_ is None:
             raise ValueError("ReweighingMitigator must be fitted before getting statistics")
         
@@ -213,36 +234,48 @@ class ReweighingMitigator(PreProcessingTechnique):
     
     def fit_reweighed_model(self, model: 'BaselineModel', X: pd.DataFrame, 
                            y: pd.Series, protected_attr: pd.Series) -> 'BaselineModel':
+
         if not self.is_fitted:
+            
             self.fit(X, y, protected_attr)
         
+    
         fitted_model = model.fit(X, y, sample_weight=self.weights_)
         
         return fitted_model
     
     def compute_correlation_reduction(self, y: pd.Series, protected_attr: pd.Series, 
                                     weights: Optional[np.ndarray] = None) -> Dict[str, float]:
+ 
         if weights is None:
             if not self.is_fitted or self.weights_ is None:
                 raise ValueError("Must provide weights or fit the mitigator first")
             weights = self.weights_
         
+        
         y_vals = y.values if hasattr(y, 'values') else np.array(y)
         attr_vals = protected_attr.values if hasattr(protected_attr, 'values') else np.array(protected_attr)
+        
         
         unique_attrs = np.unique(attr_vals)
         attr_numeric = np.zeros(len(attr_vals))
         for i, attr in enumerate(unique_attrs):
             attr_numeric[attr_vals == attr] = i
         
+       
         original_corr = np.corrcoef(attr_numeric, y_vals)[0, 1]
         
+        
+        # Use weighted covariance formula: Cov_w(X,Y) = Σw_i(x_i - μ_x)(y_i - μ_y) / Σw_i
         weighted_total = np.sum(weights)
+        
         
         weighted_mean_attr = np.sum(weights * attr_numeric) / weighted_total
         weighted_mean_y = np.sum(weights * y_vals) / weighted_total
         
+        
         weighted_cov = np.sum(weights * (attr_numeric - weighted_mean_attr) * (y_vals - weighted_mean_y)) / weighted_total
+        
         
         weighted_var_attr = np.sum(weights * (attr_numeric - weighted_mean_attr)**2) / weighted_total
         weighted_var_y = np.sum(weights * (y_vals - weighted_mean_y)**2) / weighted_total
@@ -250,12 +283,13 @@ class ReweighingMitigator(PreProcessingTechnique):
         weighted_std_attr = np.sqrt(weighted_var_attr)
         weighted_std_y = np.sqrt(weighted_var_y)
         
+        
         if weighted_std_attr > 0 and weighted_std_y > 0:
             weighted_corr = weighted_cov / (weighted_std_attr * weighted_std_y)
         else:
             weighted_corr = 0.0
         
-
+       
         abs_original = abs(original_corr)
         abs_weighted = abs(weighted_corr)
         
@@ -278,24 +312,31 @@ class ReweighingMitigator(PreProcessingTechnique):
 
         from ..fairness.metrics import FairnessMetrics
         
+        
         baseline_proba = baseline_model.predict_proba(X_test)[:, 1]
         reweighed_proba = reweighed_model.predict_proba(X_test)[:, 1]
+        
         
         baseline_pred = (baseline_proba >= 0.5).astype(int)
         reweighed_pred = (reweighed_proba >= 0.5).astype(int)
         
+        
         y_test_np = y_test.values if hasattr(y_test, 'values') else np.array(y_test)
         protected_attr_np = protected_attr_test.values if hasattr(protected_attr_test, 'values') else np.array(protected_attr_test)
         
+        
         fairness_calculator = FairnessMetrics()
+        
         
         baseline_eo = fairness_calculator.compute_equal_opportunity(y_test_np, baseline_pred, protected_attr_np)
         baseline_eqodds = fairness_calculator.compute_equalized_odds(y_test_np, baseline_pred, protected_attr_np)
         baseline_dp = fairness_calculator.compute_demographic_parity(baseline_pred, protected_attr_np)
         
+        
         reweighed_eo = fairness_calculator.compute_equal_opportunity(y_test_np, reweighed_pred, protected_attr_np)
         reweighed_eqodds = fairness_calculator.compute_equalized_odds(y_test_np, reweighed_pred, protected_attr_np)
         reweighed_dp = fairness_calculator.compute_demographic_parity(reweighed_pred, protected_attr_np)
+        
         
         eo_improvement = self._compute_metric_improvement(
             baseline_eo['equal_opportunity_gap'], 
@@ -333,7 +374,9 @@ class ReweighingMitigator(PreProcessingTechnique):
     def evaluate_utility_preservation(self, baseline_model: 'BaselineModel',
                                     reweighed_model: 'BaselineModel',
                                     X_test: pd.DataFrame, y_test: pd.Series) -> Dict[str, float]:
+
         from sklearn.metrics import roc_auc_score, average_precision_score, f1_score, brier_score_loss, log_loss
+        
         
         baseline_proba = baseline_model.predict_proba(X_test)[:, 1]
         reweighed_proba = reweighed_model.predict_proba(X_test)[:, 1]
@@ -341,7 +384,9 @@ class ReweighingMitigator(PreProcessingTechnique):
         baseline_pred = (baseline_proba >= 0.5).astype(int)
         reweighed_pred = (reweighed_proba >= 0.5).astype(int)
         
+        
         y_test_np = y_test.values if hasattr(y_test, 'values') else np.array(y_test)
+        
         
         baseline_metrics = {
             'auc': roc_auc_score(y_test_np, baseline_proba),
@@ -351,6 +396,7 @@ class ReweighingMitigator(PreProcessingTechnique):
             'log_loss': log_loss(y_test_np, baseline_proba)
         }
         
+        
         reweighed_metrics = {
             'auc': roc_auc_score(y_test_np, reweighed_proba),
             'auprc': average_precision_score(y_test_np, reweighed_proba),
@@ -358,6 +404,7 @@ class ReweighingMitigator(PreProcessingTechnique):
             'brier_score': brier_score_loss(y_test_np, reweighed_proba),
             'log_loss': log_loss(y_test_np, reweighed_proba)
         }
+        
         
         utility_changes = {}
         for metric in baseline_metrics:
@@ -372,6 +419,7 @@ class ReweighingMitigator(PreProcessingTechnique):
             utility_changes[f'{metric}_absolute_change'] = absolute_change
             utility_changes[f'{metric}_relative_change'] = relative_change
         
+        
         auc_drop = baseline_metrics['auc'] - reweighed_metrics['auc']
         utility_changes['auc_drop'] = auc_drop
         utility_changes['meets_auc_criteria'] = auc_drop <= 0.02
@@ -379,6 +427,7 @@ class ReweighingMitigator(PreProcessingTechnique):
         return utility_changes
     
     def _compute_metric_improvement(self, baseline_gap: float, reweighed_gap: float) -> Dict[str, float]:
+
         absolute_improvement = baseline_gap - reweighed_gap
         
         if baseline_gap > 0:
@@ -401,14 +450,17 @@ class ReweighingMitigator(PreProcessingTechnique):
                                reweighed_model: 'BaselineModel',
                                X_test: pd.DataFrame, y_test: pd.Series,
                                protected_attr_test: pd.Series) -> Dict[str, Any]:
+
         fairness_eval = self.evaluate_fairness_improvement(
             baseline_model, reweighed_model, X_test, y_test, protected_attr_test
         )
         
+
         utility_eval = self.evaluate_utility_preservation(
             baseline_model, reweighed_model, X_test, y_test
         )
         
+    
         eo_success = fairness_eval['improvements']['equal_opportunity']['meets_50_percent_criteria']
         auc_success = utility_eval['meets_auc_criteria']
         overall_success = eo_success and auc_success

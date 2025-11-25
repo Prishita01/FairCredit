@@ -6,24 +6,27 @@ from .threshold_optimization import ThresholdOptimizer
 
 
 class ThresholdApplicationSystem:
+
     def __init__(self, fairness_constraint: str = 'equal_opportunity',
                  constraint_tolerance: float = 0.01,
                  validation_split: float = 0.2,
                  random_state: int = 42,
                  **optimizer_kwargs):
+  
         self.fairness_constraint = fairness_constraint
         self.constraint_tolerance = constraint_tolerance
         self.validation_split = validation_split
         self.random_state = random_state
         self.optimizer_kwargs = optimizer_kwargs
         
-        # Initializing optimizer
+        # Initialize optimizer
         self.optimizer = ThresholdOptimizer(
             fairness_constraint=fairness_constraint,
             constraint_tolerance=constraint_tolerance,
             **optimizer_kwargs
         )
         
+        # Fitted parameters
         self.is_fitted = False
         self.optimal_thresholds_ = None
         self.validation_metrics_ = None
@@ -32,7 +35,7 @@ class ThresholdApplicationSystem:
         
     def fit_thresholds(self, model, X: pd.DataFrame, y: pd.Series, 
                       protected_attr: pd.Series) -> 'ThresholdApplicationSystem':
-        # Split data into training and validation sets
+
         X_train, X_val, y_train, y_val, attr_train, attr_val = train_test_split(
             X, y, protected_attr,
             test_size=self.validation_split,
@@ -40,7 +43,6 @@ class ThresholdApplicationSystem:
             stratify=pd.concat([y, protected_attr], axis=1)  # Stratify by both label and group
         )
         
-        # Storing validation split information
         self.validation_split_info_ = {
             'train_size': len(X_train),
             'val_size': len(X_val),
@@ -48,7 +50,6 @@ class ThresholdApplicationSystem:
             'val_groups': attr_val.value_counts().to_dict()
         }
         
-        # predictions on validation set
         y_val_proba_full = model.predict_proba(X_val)
         if y_val_proba_full.ndim == 2 and y_val_proba_full.shape[1] == 2:
             y_val_proba = y_val_proba_full[:, 1]
@@ -102,6 +103,7 @@ class ThresholdApplicationSystem:
     
     def _compute_decision_boundaries(self, y_proba: np.ndarray, protected_attr: np.ndarray,
                                    thresholds: Dict[str, float]) -> Dict[str, Any]:
+
         boundaries = {}
         
         for group_str, threshold in thresholds.items():
@@ -111,7 +113,6 @@ class ThresholdApplicationSystem:
             if np.any(group_mask):
                 group_proba = y_proba[group_mask]
                 
-                # Computing statistics around the decision boundary
                 boundaries[group_str] = {
                     'threshold': threshold,
                     'n_samples': len(group_proba),
@@ -139,11 +140,11 @@ class ThresholdApplicationSystem:
 
         from ..fairness.metrics import FairnessMetrics
         
-        # Applying thresholds to both sets
+        
         train_pred = self.optimizer.apply_thresholds(y_train_proba, attr_train, self.optimal_thresholds_)
         val_pred = self.optimizer.apply_thresholds(y_val_proba, attr_val, self.optimal_thresholds_)
         
-        # Computing fairness metrics
+        
         fairness_calculator = FairnessMetrics()
         
         if self.fairness_constraint == 'equal_opportunity':
@@ -156,22 +157,24 @@ class ThresholdApplicationSystem:
             train_fairness = {}
             val_fairness = {}
         
-        # Computing accuracy
+       
         train_accuracy = np.mean(y_train == train_pred)
         val_accuracy = np.mean(y_val == val_pred)
         
+       
         fairness_gap_key = f'{self.fairness_constraint}_gap'
         train_gap = train_fairness.get(fairness_gap_key, 0)
         val_gap = val_fairness.get(fairness_gap_key, 0)
         
         gap_difference = abs(train_gap - val_gap)
         accuracy_difference = abs(train_accuracy - val_accuracy)
-
+        
+        
         overfitting_indicators = {
             'fairness_gap_difference': gap_difference,
             'accuracy_difference': accuracy_difference,
-            'fairness_overfitting': bool(gap_difference > 0.05),  # More than 5% difference
-            'accuracy_overfitting': bool(accuracy_difference > 0.05),  # More than 5% difference
+            'fairness_overfitting': bool(gap_difference > 0.05),  
+            'accuracy_overfitting': bool(accuracy_difference > 0.05),  
             'overall_overfitting': bool(gap_difference > 0.05 or accuracy_difference > 0.05)
         }
         
@@ -195,6 +198,7 @@ class ThresholdApplicationSystem:
     
     def verify_decision_boundaries(self, model, X: pd.DataFrame, y: pd.Series,
                                  protected_attr: pd.Series) -> Dict[str, Any]:
+
         if not self.is_fitted:
             raise ValueError("ThresholdApplicationSystem must be fitted before verification")
         
@@ -215,13 +219,16 @@ class ThresholdApplicationSystem:
                 group_pred = y_pred[group_mask]
                 group_true = y_np[group_mask]
                 
+   
                 expected_pred = (group_proba >= threshold).astype(int)
                 threshold_applied_correctly = np.array_equal(group_pred, expected_pred)
                 
-                near_threshold_mask = np.abs(group_proba - threshold) <= 0.05  # Within 5% of threshold
+
+                near_threshold_mask = np.abs(group_proba - threshold) <= 0.05  
                 near_threshold_predictions = group_pred[near_threshold_mask]
                 near_threshold_probabilities = group_proba[near_threshold_mask]
                 
+
                 group_accuracy = np.mean(group_true == group_pred)
                 
                 if np.any(group_true == 1):
@@ -260,6 +267,7 @@ class ThresholdApplicationSystem:
                     }
                 }
         
+
         all_thresholds_correct = all(
             result['threshold_applied_correctly'] 
             for result in verification_results.values()
@@ -284,6 +292,7 @@ class ThresholdApplicationSystem:
         }
     
     def get_system_info(self) -> Dict[str, Any]:
+
         info = {
             'fairness_constraint': self.fairness_constraint,
             'constraint_tolerance': self.constraint_tolerance,
@@ -306,18 +315,24 @@ class ThresholdApplicationSystem:
     def evaluate_system_performance(self, model, X_test: pd.DataFrame, y_test: pd.Series,
                                   protected_attr_test: pd.Series,
                                   baseline_threshold: float = 0.5) -> Dict[str, Any]:
+
         if not self.is_fitted:
             raise ValueError("ThresholdApplicationSystem must be fitted before evaluation")
         
+
         y_test_proba = model.predict_proba(X_test)[:, 1]
         
+
         baseline_pred = (y_test_proba >= baseline_threshold).astype(int)
         
+
         system_pred = self.apply_thresholds(model, X_test, protected_attr_test)
         
+    
         y_test_np = y_test.values if hasattr(y_test, 'values') else np.array(y_test)
         protected_attr_np = protected_attr_test.values if hasattr(protected_attr_test, 'values') else np.array(protected_attr_test)
         
+
         from ..fairness.metrics import FairnessMetrics
         fairness_calculator = FairnessMetrics()
         
@@ -331,9 +346,11 @@ class ThresholdApplicationSystem:
             baseline_fairness = {}
             system_fairness = {}
         
+
         baseline_accuracy = np.mean(y_test_np == baseline_pred)
         system_accuracy = np.mean(y_test_np == system_pred)
         
+
         fairness_gap_key = f'{self.fairness_constraint}_gap'
         baseline_gap = baseline_fairness.get(fairness_gap_key, 0)
         system_gap = system_fairness.get(fairness_gap_key, 0)
