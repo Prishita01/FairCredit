@@ -9,34 +9,27 @@ from pathlib import Path
 @dataclass
 class Config:
     
-    # Random seeds for reproducibility
     random_seed: int = 42
     numpy_seed: int = 42
     sklearn_seed: int = 42
     
-    # Data splitting 
     test_size: float = 0.2
     val_size: float = 0.2
     stratify_by_protected: bool = True
     
-    # Model training 
     logistic_regression_params: Dict[str, Any] = None
     xgboost_params: Dict[str, Any] = None
     
-    # Fairness auditing 
     bootstrap_samples: int = 1000
     confidence_level: float = 0.95
-    
-    # Mitigation 
+
     reweighing_enabled: bool = True
     threshold_optimization_enabled: bool = True
     
-    # Robustness testing 
     distribution_shift_magnitude: float = 0.25
     missing_data_rate: float = 0.1
     stability_threshold: float = 0.25
     
-    # Output 
     output_dir: str = "results"
     save_plots: bool = True
     save_models: bool = True
@@ -109,6 +102,5 @@ class Config:
     def get_experiment_id(self) -> str:
         import hashlib
         
-        # Create hash of key config parameters
         config_str = f"{self.random_seed}_{self.test_size}_{self.val_size}_{self.bootstrap_samples}"
         return hashlib.md5(config_str.encode()).hexdigest()[:8]

@@ -1,5 +1,3 @@
-# Authors: Akash Rana & Prishita Ghanathe Krishna
-
 from typing import Dict, Any, Optional, List, Tuple
 import pandas as pd
 import numpy as np
@@ -17,12 +15,10 @@ from .robustness.robustness_tester import RobustnessTester
 
 class FairCreditPipeline:
     def __init__(self, config: Config):
-        # Initializing the FairCredit pipeline.
 
         self.config = config
         self.logger = self._setup_logging()
         
-        # Initialize components (will be set during pipeline execution)
         self.data_processor: Optional[DataProcessor] = None
         self.baseline_models: Dict[str, BaselineModel] = {}
         self.fairness_auditor: Optional[FairnessAuditor] = None
@@ -31,19 +27,15 @@ class FairCreditPipeline:
         self.robustness_tester: Optional[RobustnessTester] = None
         self.evaluator = MitigationEvaluator()
         
-        # Data storage
         self.datasets: Dict[str, pd.DataFrame] = {}
         self.results: Dict[str, Any] = {}
         
-        # Set up reproducibility
         self.config.setup_reproducibility()
         
     def _setup_logging(self) -> logging.Logger:
-        # Setting up logging for the pipeline.
         logger = logging.getLogger('FairCredit')
         logger.setLevel(logging.INFO)
         
-        # Creating console handler
         handler = logging.StreamHandler()
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -54,7 +46,6 @@ class FairCreditPipeline:
         return logger
     
     def load_and_preprocess_data(self) -> Dict[str, pd.DataFrame]:
-        # German Credit Dataset
         self.logger.info("Loading and preprocessing German Credit dataset...")
         
         if self.data_processor is None:
@@ -94,10 +85,6 @@ class FairCreditPipeline:
         train_df = self.datasets['train']
         X_train = train_df.drop(['default'], axis=1)
         y_train = train_df['default']
-        
-        # Train models (implementations will be added in subsequent tasks)
-        # This is just the interface setup
-        
         self.logger.info(f"Trained {len(self.baseline_models)} baseline models")
         return self.baseline_models
     
@@ -111,16 +98,13 @@ class FairCreditPipeline:
         if self.fairness_auditor is None:
             raise ValueError("Fairness auditor not initialized")
         
-        # Getting the test data
         test_df = self.datasets['test']
         X_test = test_df.drop(['default', 'sex', 'age_group'], axis=1)
         y_test = test_df['default'].values
         
-        # Making predictions
         model = self.baseline_models[model_name]
         y_pred = model.predict(X_test)
 
-        # Auditing fairness for each protected attribute (will be expanded in subsequent tasks)
         fairness_results = {}
         
         for attr in ['sex', 'age_group']:
@@ -134,7 +118,6 @@ class FairCreditPipeline:
         return fairness_results
     
     def apply_mitigation(self, technique_name: str, model_name: str) -> BaselineModel:
-        # Applying bias mitigation technique to a model.
         self.logger.info(f"Applying {technique_name} mitigation to {model_name}")
         
         if technique_name not in self.mitigation_techniques:
@@ -142,8 +125,6 @@ class FairCreditPipeline:
         
         if model_name not in self.baseline_models:
             raise ValueError(f"Model '{model_name}' not found")
-        
-        # Implementation will be added later
         
         self.logger.info(f"Applied {technique_name} mitigation")
         return self.baseline_models[model_name]
@@ -155,7 +136,6 @@ class FairCreditPipeline:
         if self.explainer is None:
             raise ValueError("Explainer not initialized")
         
-        # Implementation will be added later
         explanation_results = {}
         self.results[f'{model_name}_explanations'] = explanation_results
         
@@ -167,7 +147,6 @@ class FairCreditPipeline:
         if self.robustness_tester is None:
             raise ValueError("Robustness tester not initialized")
         
-        # Implementation will be added later
         
         robustness_results = {}
         self.results[f'{model_name}_robustness'] = robustness_results
@@ -178,26 +157,20 @@ class FairCreditPipeline:
        
         self.logger.info("Starting full FairCredit pipeline...")
         
-        # 1. Loading and preprocessing the data
         self.load_and_preprocess_data()
         
-        # 2. Training baseline models
         self.train_baseline_models()
         
-        # 3. Auditing fairness for each model
         for model_name in self.baseline_models:
             self.audit_fairness(model_name)
         
-        # 4. Applying mitigation techniques
         for technique_name in self.mitigation_techniques:
             for model_name in self.baseline_models:
                 self.apply_mitigation(technique_name, model_name)
         
-        # 5. Generating explanations
         for model_name in self.baseline_models:
             self.explain_model(model_name)
         
-        # 6. Testing our model's robustness
         for model_name in self.baseline_models:
             self.test_robustness(model_name)
         
@@ -213,12 +186,10 @@ class FairCreditPipeline:
         output_path.mkdir(parents=True, exist_ok=True)
         
         self.config.to_file(output_path / "config.yaml")
-        
-        # Save results (implementation will be expanded in subsequent tasks)
+
         self.logger.info(f"Results saved to {output_path}")
     
     def get_pipeline_summary(self) -> Dict[str, Any]:
-        # Summarizing the pipeline execution
         summary = {
             'config': self.config.get_experiment_id(),
             'datasets': {name: len(df) for name, df in self.datasets.items()},
