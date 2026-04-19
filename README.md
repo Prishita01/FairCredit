@@ -36,6 +36,44 @@ Validated on:
 
 ---
 
+## Architecture
+
+\`\`\`
+       ┌─────────────────────────────────────────┐
+       │           Data Ingestion                │
+       │  (German Credit · Bank Marketing · US)  │
+       └────────────────┬────────────────────────┘
+                        ↓
+       ┌─────────────────────────────────────────┐
+       │   Preprocessing + Feature Engineering   │
+       │  (encoding, scaling, missing-value imp) │
+       └────────────────┬────────────────────────┘
+                        ↓
+       ┌────────────────┼─────────────────────────┐
+       │                ↓                         │
+   [Baseline       [Reweighing]      [Threshold Optimization]
+    LR / RF /     (pre-process)         (post-process)
+    XGBoost]                                      │
+       │                │                         │
+       └────────────────┼─────────────────────────┘
+                        ↓
+       ┌─────────────────────────────────────────┐
+       │   Fairness Audit (DPD · EOD · DI)       │
+       │   + SHAP group-wise explainability      │
+       │   + Robustness: covariate/label shift,  │
+       │     MCAR/MAR/MNAR missingness           │
+       └─────────────────────────────────────────┘
+\`\`\`
+
+## Reproduce results in 1 command
+
+\`\`\`bash
+git clone https://github.com/Prishita01/FairCredit.git
+cd FairCredit
+pip install -e .
+python -m fair_credit.run --config config/default_config.yaml
+\`\`\`
+
 ## Mitigation Approaches
 
 | Method | Type | Accuracy Loss | Fairness Gain |
