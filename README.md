@@ -71,7 +71,6 @@ Validated on:
 git clone https://github.com/Prishita01/FairCredit.git
 cd FairCredit
 pip install -e .
-python -m fair_credit.run --config config/default_config.yaml
 \`\`\`
 
 ## Mitigation Approaches
